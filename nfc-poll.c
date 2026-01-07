@@ -90,6 +90,124 @@ print_nfc_target(const nfc_target *pnt, bool verbose)
   nfc_free(s);
 }
 
+
+#define MAX_UID_BYTES 10
+size_t nfc_id(const nfc_target *pnt, const uint8_t **out_uid_pointer)
+{
+  const uint8_t *uid_pointer = NULL;
+  size_t uid_size = 0;
+
+  if (pnt != NULL) {
+    switch (pnt->nm.nmt) {
+      case NMT_ISO14443A:
+      {
+        const nfc_iso14443a_info *pnai = &pnt->nti.nai;
+        uid_pointer = pnai->abtUid;
+        uid_size = pnai->szUidLen;
+        break;
+      }
+      case NMT_JEWEL:
+      {
+        const nfc_jewel_info *pnji = &pnt->nti.nji;
+        uid_pointer = pnji->btId;
+        uid_size = 4;
+        break;
+      }
+      case NMT_BARCODE:
+      {
+        const nfc_barcode_info *pnti = &pnt->nti.nti;
+        uid_pointer = pnti->abtData;
+        uid_size = pnti->szDataLen;
+        break;
+      }
+      case NMT_FELICA:
+      {
+        const nfc_felica_info *pnfi = &pnt->nti.nfi;
+        uid_pointer = pnfi->abtId;
+        uid_size = 8;
+        break;
+      }
+      case NMT_ISO14443B:
+      {
+        const nfc_iso14443b_info *pnbi = &pnt->nti.nbi;
+        uid_pointer = pnbi->abtPupi;
+        uid_size = 4;
+        break;
+      }
+      case NMT_ISO14443BI:
+      {
+        const nfc_iso14443bi_info *pnii = &pnt->nti.nii;
+        uid_pointer = pnii->abtDIV;
+        uid_size = 4;
+        break;
+      }
+      case NMT_ISO14443B2SR:
+      {
+        const nfc_iso14443b2sr_info *pnsi = &pnt->nti.nsi;
+        uid_pointer = pnsi->abtUID;
+        uid_size = 8;
+        break;
+      }
+      case NMT_ISO14443BICLASS:
+      {
+        const nfc_iso14443biclass_info *pnic = &pnt->nti.nhi;
+        uid_pointer = pnic->abtUID;
+        uid_size = 8;
+        break;
+      }
+      case NMT_ISO14443B2CT:
+      {
+        const nfc_iso14443b2ct_info *pnci = &pnt->nti.nci;
+        uid_pointer = pnci->abtUID;
+        uid_size = sizeof(pnci->abtUID);
+        break;
+      }
+      case NMT_DEP:
+      {
+        const nfc_dep_info *pndi = &pnt->nti.ndi;
+        uid_pointer = pndi->abtNFCID3;
+        uid_size = 10;
+        break;
+      }
+    }
+  }
+
+  // Limit UID size
+  if (uid_size > MAX_UID_BYTES) uid_size = MAX_UID_BYTES;
+  if (out_uid_pointer != NULL) {
+    *out_uid_pointer = uid_pointer;
+  }
+  return uid_size;
+}
+
+
+#define MAX_UID_STRING_BUFFER (MAX_UID_BYTES * 2 + 1)
+char *nfc_id_string(const nfc_target *pnt, char *buffer)
+{
+  static char static_uid_buffer[MAX_UID_STRING_BUFFER];
+  if (buffer == NULL) buffer = static_uid_buffer;
+
+  const uint8_t *uid_pointer = NULL;
+  size_t uid_size = nfc_id(pnt, &uid_pointer);
+  if (uid_size > MAX_UID_BYTES) uid_size = MAX_UID_BYTES;
+  if (uid_pointer == NULL) uid_size = 0;
+
+  // Convert to hex string, in reverse order
+  for (size_t i = 0; i < uid_size; i++) {
+    sprintf(buffer + 2 * i, "%02x", pnt->nti.nai.abtUid[uid_size - 1 - i]);
+  }
+
+  // Pad remaining buffer with zeros (including terminating null)
+  memset(buffer + 2 * uid_size, 0, MAX_UID_STRING_BUFFER - (2 * uid_size));
+
+  // If no UID, return NULL
+  if (uid_pointer == 0 || uid_size == 0) {
+    return NULL;
+  }
+  return buffer;
+}
+
+
 #define MAX_DEVICE_COUNT 16
 
 static nfc_device *pnd = NULL;
@@ -116,22 +234,38 @@ print_usage(const char *progname)
 int
 main(int argc, const char *argv[])
 {
-  bool verbose = false;
-
   signal(SIGINT, stop_polling);
 
-  // Display libnfc version
-  const char *acLibnfcVersion = nfc_version();
-
-  printf("%s uses libnfc %s\n", argv[0], acLibnfcVersion);
-  if (argc != 1) {
-    if ((argc == 2) && (0 == strcmp("-v", argv[1]))) {
+  bool help = false;
+  bool verbose = false;
+  bool list = false;
+  int positional = 0;
+  const char *arg_connection = NULL;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp("-v", argv[i]) == 0) {
       verbose = true;
+    } else if (strcmp("-l", argv[i]) == 0) {
+      list = true;
+    } else if (argv[i][0] == '-') {
+      perror("Error: Unknown option.");
+      help = true;
     } else {
-      print_usage(argv[0]);
-      exit(EXIT_FAILURE);
+      if (positional == 0) {
+        arg_connection = argv[i];
+      } else {
+        perror("Error: Unknown positional argument.");
+        help = true;
+      }
+      positional++;
     }
   }
+  if (help) {
+    print_usage(argv[0]);
+    exit(EXIT_FAILURE);
+  }
+
+  const char *acLibnfcVersion = nfc_version();
+  if (verbose) printf("%s uses libnfc %s\n", argv[0], acLibnfcVersion);
 
   const uint8_t uiPollNr = 1;   // 20
   const uint8_t uiPeriod = 2;
@@ -154,7 +288,36 @@ main(int argc, const char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  pnd = nfc_open(context, NULL);
+  nfc_connstring connstrings[MAX_DEVICE_COUNT];
+  size_t szDeviceFound = nfc_list_devices(context, connstrings, MAX_DEVICE_COUNT);
+  if (verbose) printf("NFC device(s) found: %zu\n", szDeviceFound);
+  // Match connection string
+  int connectionIndex = -1;
+  for (size_t i = 0; i < szDeviceFound; i++) {
+    if (verbose) printf("#%zu: %s\n", i, connstrings[i]);
+    if (arg_connection != NULL && strcmp(arg_connection, connstrings[i]) == 0) {
+      connectionIndex = (int)i;
+    }
+  }
+  // List devices and exit
+  if (list) {
+    for (size_t i = 0; i < szDeviceFound; i++) {
+      printf("%s\n", connstrings[i]);
+    }
+    nfc_exit(context);
+    exit(EXIT_SUCCESS);
+  }
+
+  if (connectionIndex < 0) {
+    if (arg_connection != NULL) {
+      ERR("NFC device with connection string '%s' not found.", arg_connection);
+      nfc_exit(context);
+      exit(EXIT_FAILURE);
+    }
+    if (verbose) printf("Note: No connection string specified.\n");
+  }
+
+  pnd = nfc_open(context, connectionIndex >= 0 ? connstrings[connectionIndex] : NULL);
 
   if (pnd == NULL) {
     ERR("%s", "Unable to open NFC device.");
@@ -169,10 +332,10 @@ main(int argc, const char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  printf("NFC reader: %s opened\n", nfc_device_get_name(pnd));
+  if (verbose) printf("NFC reader: %s opened\n", nfc_device_get_name(pnd));
 
 rescan:
-  printf("NFC device will poll during %ld ms (%u pollings of %lu ms for %" PRIdPTR " modulations)\n", (unsigned long) uiPollNr * szModulations * uiPeriod * 150, uiPollNr, (unsigned long) uiPeriod * 150, szModulations);
+  if (verbose) printf("NFC device will poll during %ld ms (%u pollings of %lu ms for %" PRIdPTR " modulations)\n", (unsigned long) uiPollNr * szModulations * uiPeriod * 150, uiPollNr, (unsigned long) uiPeriod * 150, szModulations);
   if ((res = nfc_initiator_poll_target(pnd, nmModulations, szModulations, uiPollNr, uiPeriod, &nt))  < 0) {
     nfc_perror(pnd, "nfc_initiator_poll_target");
     nfc_close(pnd);
@@ -181,14 +344,25 @@ rescan:
   }
 
   if (res > 0) {
-    print_nfc_target(&nt, verbose);
-    printf("Waiting for card removing...");
+    // Card detected
+    char *id = nfc_id_string(&nt, NULL);
+    if (id != NULL) {
+      printf("%s\n", id);
+    } else {
+      printf("?\n");
+    }
+    if (verbose) print_nfc_target(&nt, verbose);
+    if (verbose) printf("Waiting for card removing...");
     fflush(stdout);
     while (0 == nfc_initiator_target_is_present(pnd, NULL)) {}
-    nfc_perror(pnd, "nfc_initiator_target_is_present");
-    printf("done.\n");
+    if (verbose) nfc_perror(pnd, "nfc_initiator_target_is_present");
+    if (verbose) printf("done.\n");
+
+    // Card removed
+    printf("\n");
+    fflush(stdout);
   } else {
-    printf("No target found.\n");
+    if (verbose) printf("No target found.\n");
   }
   goto rescan;
 
