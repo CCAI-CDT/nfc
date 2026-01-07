@@ -7,12 +7,15 @@
 // To compile, on macOS:
 //   gcc -I$(brew --prefix)/include -L$(brew --prefix)/lib nfc-poll.c -o nfc-poll -lnfc
 
+// To list devices -- alternatively:  $(brew --prefix)/bin/nfc-scan-device -v
+//   ./nfc-poll -l
+
 // To run:
-//   ./nfc-poll
+//   ./nfc-poll $DEVICENAME
+// ...outputs UID of detected cards, one per line, and an empty line once removed.  An initial empty line is sent if no card is present on startup.
 
-// To list devices, on macOS:
-//   $(brew --prefix)/bin/nfc-scan-device -v
 
+// usb:072f:2200 -- location: usb:###:###
 
 
 /*-
@@ -227,8 +230,9 @@ static void stop_polling(int sig)
 static void
 print_usage(const char *progname)
 {
-  printf("usage: %s [-v]\n", progname);
+  printf("usage: %s [-v] [-l] <device_name>\n", progname);
   printf("  -v\t verbose display\n");
+  printf("  -l\t list devices\n");
 }
 
 int
@@ -334,6 +338,7 @@ main(int argc, const char *argv[])
 
   if (verbose) printf("NFC reader: %s opened\n", nfc_device_get_name(pnd));
 
+  bool report_initial_empty = true;
 rescan:
   if (verbose) printf("NFC device will poll during %ld ms (%u pollings of %lu ms for %" PRIdPTR " modulations)\n", (unsigned long) uiPollNr * szModulations * uiPeriod * 150, uiPollNr, (unsigned long) uiPeriod * 150, szModulations);
   if ((res = nfc_initiator_poll_target(pnd, nmModulations, szModulations, uiPollNr, uiPeriod, &nt))  < 0) {
@@ -354,7 +359,11 @@ rescan:
     if (verbose) print_nfc_target(&nt, verbose);
     if (verbose) printf("Waiting for card removing...");
     fflush(stdout);
-    while (0 == nfc_initiator_target_is_present(pnd, NULL)) {}
+
+    // Pause until card is removed
+    while (!nfc_initiator_target_is_present(pnd, NULL)) {
+      ; // TODO: Ensure this is interruptable with Ctrl+C
+    }
     if (verbose) nfc_perror(pnd, "nfc_initiator_target_is_present");
     if (verbose) printf("done.\n");
 
@@ -362,8 +371,15 @@ rescan:
     printf("\n");
     fflush(stdout);
   } else {
+    if (report_initial_empty) {
+      // Initial state empty report
+      printf("\n");
+      fflush(stdout);
+    }
     if (verbose) printf("No target found.\n");
   }
+  report_initial_empty = false;
+
   goto rescan;
 
   // nfc_close(pnd);

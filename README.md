@@ -5,7 +5,6 @@
 <!--
 
 To do list:
-* Python wrapper to identify all readers and spawn nfc-poll for each reader, collect output and provide a unified interface
 * Attempt to list and match on USB serial number, or USB location ID where serial number is missing or 0.
 
 -->

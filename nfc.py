@@ -2,6 +2,12 @@
 # Dan Jackson, 2026
 
 import sys
+import subprocess
+import threading
+from time import sleep
+
+BINARY='./nfc-poll'
+
 
 class NfcReader:
     """
@@ -9,10 +15,12 @@ class NfcReader:
     Dan Jackson, 2026
     """
 
-    def __init__(self, port):
-        self.port = port
-        self.open = False
-    
+    def __init__(self, device = None, callback=None):
+        self.device = device
+        self.callback = callback
+        self.proc = None
+        self.thread = None
+
     def __del__(self):
         self.close()
     
@@ -24,31 +32,79 @@ class NfcReader:
         self.close()
     
 
+    def list_devices():
+        #sys.stderr.write("NfcReader: Listing devices...\n")
+        result = subprocess.run([BINARY, '-l'], capture_output=True, text=True)
+        if result.returncode != 0:
+            print("RETURN: " + str(result.returncode))
+            print("STDOUT: " + result.stdout)
+            print("STDERR: " + result.stderr)
+            raise Exception("NfcReader: Failed to list devices: " + result.stderr)
+        # Parse result.stdout to find devices (one per line)
+        devices = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                devices.append(line)
+        return devices
+
     def open(self):
-        sys.stderr.write("NfcReader: Opening..." + self.port + '\n')
-        self.open = True
-        pass
-    
+        if self.thread:
+            raise Exception("NfcReader: Already open")
+
+        #sys.stderr.write("NfcReader: Opening..." + str(self.device) + '\n')
+        self.proc = None
+        self.thread = threading.Thread(target=self.start)
+        self.thread.start()
+
+    def start(self):
+        command = [BINARY]
+        if self.device:
+            command.append(self.device)
+        self.proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, cwd='.', shell=False)
+        #os.set_blocking(proc.stdout.fileno(), False)  # Not supported on Windows
+        while self.proc:
+            if self.proc.poll() is None:
+                card = self.proc.stdout.readline().strip()
+                if self.callback:
+                    self.callback(self, card)
+
+        self.proc.wait()
+        self.proc = None
+
+    def wait(self):
+        if self.thread:
+            self.thread.join()
+            self.thread = None
     
     def close(self):
-        if not self.open:
-            return
-        sys.stderr.write("NfcReader: Closing..." + self.port + '\n')
-        self.open = False
+        sys.stderr.write("NfcReader: Closing..." + str(self.device) + '\n')
+        if self.proc:
+            self.proc.terminate()
+        if self.thread:
+            self.thread.join()
+            self.thread = None
 
-    def read(self):
-        if not self.open:
-            raise Exception("NfcReader: Not open")
-        card = None
-        return card
+
+def multi_reader(callback):
+    devices = NfcReader.list_devices()
+    # for i, device in enumerate(devices):
+    #     print(f"#{i} {device}")
+
+    readers = []
+    for device in devices:
+        new_reader = NfcReader(device, callback)
+        readers.append(new_reader)
+    
+    for reader in readers:
+        reader.open()
+
+    for reader in readers:
+        reader.wait()
 
 
 # Example code if run from command-line
 if __name__ == "__main__":
-    port = '???'
-    if len(sys.argv) > 1:
-        port = sys.argv[1]
-    with NfcReader(port) as nfc:
-        card = nfc.read()
-        if card:
-            print("CARD: " + card)
+    def card_callback(reader, card):
+        print('' + reader.device + '\t' + card)
+    multi_reader(card_callback)
