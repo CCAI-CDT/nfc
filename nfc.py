@@ -7,6 +7,7 @@ import threading
 from time import sleep
 
 BINARY='./nfc-poll'
+DEVICE_FILTER='acr122_usb:'
 
 
 class NfcReader:
@@ -58,24 +59,36 @@ class NfcReader:
         self.thread.start()
 
     def start(self):
-        command = [BINARY]
-        if self.device:
-            command.append(self.device)
-        self.proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, cwd='.', shell=False)
-        #os.set_blocking(proc.stdout.fileno(), False)  # Not supported on Windows
-        while self.proc:
-            if self.proc.poll() is None:
-                card = self.proc.stdout.readline().strip()  # Empty string if none
-                if self.callback:
-                    self.callback(self, card)
+        try:
+            command = [BINARY]
+            if self.device:
+                command.append(self.device)
+            self.proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, cwd='.', shell=False)
+            #os.set_blocking(proc.stdout.fileno(), False)  # Not supported on Windows
+            while self.proc:
+                if self.proc.poll() is None:
+                    card = self.proc.stdout.readline().strip()  # Empty string if none
+                    if self.callback:
+                        self.callback(self, card)
+                else:
+                    sys.stderr.write("NfcReader: Process exited for device " + str(self.device) + '\n')
+                    self.proc = None
+                    break
+        finally:
+            sys.stderr.write("NfcReader: Exiting reader thread for device " + str(self.device) + '\n')
+            if self.proc:
+                self.proc.terminate()
+                sys.stderr.write("NfcReader: Waiting for process termination for device " + str(self.device) + '\n')
+                self.proc.wait()
+                self.proc = None
+            sys.stderr.write("NfcReader: Leaving thread " + str(self.device) + '\n')
+            self.thread = None
 
-        self.proc.wait()
-        self.proc = None
 
     def wait(self):
         if self.thread:
+            sys.stderr.write("NfcReader: Waiting/reading for device " + str(self.device) + '\n')
             self.thread.join()
-            self.thread = None
     
     def close(self):
         sys.stderr.write("NfcReader: Closing..." + str(self.device) + '\n')
@@ -83,11 +96,15 @@ class NfcReader:
             self.proc.terminate()
         if self.thread:
             self.thread.join()
-            self.thread = None
 
 
 def multi_reader(callback):
     devices = NfcReader.list_devices()
+
+    # Filter devices
+    if DEVICE_FILTER:
+        devices = [d for d in devices if DEVICE_FILTER in d]
+
     # for i, device in enumerate(devices):
     #     print(f"#{i} {device}")
 
