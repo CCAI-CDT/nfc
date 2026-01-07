@@ -5,10 +5,8 @@
 <!--
 
 To do list:
-1. Command-line option to list all readers
-2. Command-line option to select a specific reader
-3. Use stdout for line-separated card ID and empty lines for no card, move all other output to stderr
-4. Python wrapper to identify all readers and spawn nfc-poll for each reader, collect output and provide a unified interface (use USB location ID to identify readers where the serial number is missing or 0)
+* Python wrapper to identify all readers and spawn nfc-poll for each reader, collect output and provide a unified interface
+* Attempt to list and match on USB serial number, or USB location ID where serial number is missing or 0.
 
 -->
 
