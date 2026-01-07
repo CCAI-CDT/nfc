@@ -65,7 +65,7 @@ class NfcReader:
         #os.set_blocking(proc.stdout.fileno(), False)  # Not supported on Windows
         while self.proc:
             if self.proc.poll() is None:
-                card = self.proc.stdout.readline().strip()
+                card = self.proc.stdout.readline().strip()  # Empty string if none
                 if self.callback:
                     self.callback(self, card)
 

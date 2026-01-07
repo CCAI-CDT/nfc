@@ -36,11 +36,16 @@ For macOS, see:
 
 ## Misc
 
-List USB devices on macOS:
+List devices on macOS:
 
 ```bash
-ioreg -p IOUSB -l -w0
+ioreg -p IOUSB -l -w0 | grep " ACR122U" -A 32  ;  $(brew --prefix)/bin/nfc-scan-device -v
 ```
+
+Device name `ACR122U PICC Interface`, `VID=072F`, `PID=2200`.
+
+Note, the connection strings are of the format `acr122_usb:000:000`, where the first `000` is the USB bus number and the second `000` is the USB device address (also known as the `USB Address` or `kUSBAddress` in the ioreg output).  See [acr12_usb.c](https://github.com/nfc-tools/libnfc/blob/master/libnfc/drivers/acr122_usb.c#L336).
+
 
 ```
 ACR122U PICC Interface@40132000  <class IOUSBHostDevice, id 0x10413d2a9, registered, matched, active, busy 0 (24 ms), retain 26>
