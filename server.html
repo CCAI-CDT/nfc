@@ -12,24 +12,63 @@ body {
 </head>
 <body>
 <h1>NFC Server</h1>
-<textarea readonly rows="20"></textarea>
+<textarea readonly rows="20" cols="50"></textarea>
 <script>
-const textarea = document.querySelector('textarea');
-// Create websocket server
-const ws = new WebSocket(`ws://${location.host}/ws`);
-ws.addEventListener('open', () => {
-	textarea.value += 'WebSocket connection opened\n';
-});
-ws.addEventListener('message', (event) => {
-	textarea.value += `Received: ${event.data}\n`;
+function log(message) {
+	console.log(message);
+	const textarea = document.querySelector('textarea');
+	textarea.value += message + '\n';
 	textarea.scrollTop = textarea.scrollHeight;
-});
-ws.addEventListener('close', () => {
-	textarea.value += 'WebSocket connection closed\n';
-});
-ws.addEventListener('error', (error) => {
-	textarea.value += `WebSocket error: ${error}\n`;
-});
+}
+
+let reconnectTries = 0;
+function connect(connectionString, eventCallback) {
+	log('WS: Opening ' + connectionString);
+	const ws = new WebSocket(connectionString);
+
+	ws.addEventListener('open', () => {
+		log('WS: Opened');
+		reconnectTries = 0;
+	});
+
+	ws.addEventListener('message', (event) => {
+		const eventData = JSON.parse(event.data);
+		const message = `${eventData.reader}: ${eventData.card}`;
+		log(message);
+		eventCallback(eventData.reader, eventData.card);
+	});
+
+	ws.addEventListener('close', () => {
+		log('WS: Closed');
+
+		// Schedule reconnection with backoff
+		reconnectTries++;
+		let reconnectInterval = (1.2 ** Math.min(reconnectTries, 10)) * 10;
+		setTimeout(() => {
+			connect(connectionString);
+		}, reconnectInterval * 1000);
+	});
+
+	ws.addEventListener('error', (error) => {
+		log(`WS: Error: ${error.message}`);
+	});
+}
+
+// Track state
+const cardState = {};
+function cardChanged(reader, card) {
+	const newReader = !(reader in cardState);
+	const previousValue = newReader ? '' : cardState[reader];
+	cardState[reader] = card;
+
+	// Handle NFC events here
+	log(`Event received - Reader: ${reader}, Card: ${card} - State: ${JSON.stringify(cardState)}`);
+}
+
+// Create websocket server
+const connectionString = `ws://${location.host}/ws`;
+connect(connectionString, cardChanged);
+
 </script>
 </body>
 </html>
