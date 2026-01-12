@@ -12,9 +12,22 @@ To do list:
 ## Setup
 
 ```bash
+# Install libnfc on macOS using Homebrew
 brew install libnfc
+
+# Compile nfc-poll program
 gcc -I$(brew --prefix)/include -L$(brew --prefix)/lib nfc-poll.c -o nfc-poll -lnfc
+
+# Create virtual environment for Python
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install required Python packages for WebSocket-based NFC reader
+pip install flask flask-sock
 ```
+
 
 ## Information
 

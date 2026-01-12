@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server Page</title>
+<style>
+body {
+	font-family: sans-serif;
+}
+</style>
+</head>
+<body>
+<h1>NFC Server</h1>
+<textarea readonly rows="20"></textarea>
+<script>
+const textarea = document.querySelector('textarea');
+// Create websocket server
+const ws = new WebSocket(`ws://${location.host}/ws`);
+ws.addEventListener('open', () => {
+	textarea.value += 'WebSocket connection opened\n';
+});
+ws.addEventListener('message', (event) => {
+	textarea.value += `Received: ${event.data}\n`;
+	textarea.scrollTop = textarea.scrollHeight;
+});
+ws.addEventListener('close', () => {
+	textarea.value += 'WebSocket connection closed\n';
+});
+ws.addEventListener('error', (error) => {
+	textarea.value += `WebSocket error: ${error}\n`;
+});
+</script>
+</body>
+</html>
