@@ -2,3 +2,4 @@
 _local
 nfc-poll
 usb-list
+__pycache__
