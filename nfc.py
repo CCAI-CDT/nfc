@@ -107,13 +107,12 @@ def multi_reader(callback):
 
     if not devices:
         print("! No NFC devices found.")
-        if True:
-            # Fake events with delays
-            while True:
-                sleep(5)
-                callback(NfcReader("FAKE"), "1234")
-                sleep(5)
-                callback(NfcReader("FAKE"), "")
+        # If true, fake events with delays
+        if False:
+            sleep(5)
+            callback("FAKE", "1234")
+            sleep(5)
+            callback("FAKE", "")
     else:
         for i, device in enumerate(devices):
             print(f"#{i} {device}")
