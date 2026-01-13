@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:;base64,">
+<title>NFC Test Page</title>
+<style>
+body {
+    font-family: sans-serif;
+}
+</style>
+</head>
+<body>
+<h1>NFC Test Page</h1>
+<textarea readonly rows="20" cols="50"></textarea>
+<script src="nfc.js"></script>
+<script>
+function log(message) {
+    console.log(message);
+    const textarea = document.querySelector('textarea');
+    textarea.value += message + '\n';
+    textarea.scrollTop = textarea.scrollHeight;
+}
+
+// Track state
+const cardState = {};
+function nfcEvent(event) {
+    // const cardEvent = {
+    //     source,     // Nfc
+    //     reader,     // string
+    //     id,         // string | ''
+    //     previousId, // string | ''
+    //     readers.    // { reader: id, ... }
+    // };
+
+    // Handle NFC events here
+    log(`Event received - Reader: ${event.reader}, ID: ${event.id} - State: ${JSON.stringify(event.readers)}`);
+}
+
+const connectionString = `ws://${location.hostname}:${location.port}/ws`;
+const nfc = new Nfc(connectionString, nfcEvent, log);
+nfc.connect();
+
+</script>
+</body>
+</html>

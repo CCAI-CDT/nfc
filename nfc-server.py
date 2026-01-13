@@ -11,7 +11,11 @@ connections = []
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'server.html')
+    return send_from_directory('.', 'test.html')
+
+@app.route('/nfc.js')
+def nfc_js():
+    return send_from_directory('.', 'nfc.js')
 
 @sock.route('/ws')
 def echo(sock):
