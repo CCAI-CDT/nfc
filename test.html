@@ -35,11 +35,42 @@ function nfcEvent(event) {
     // };
 
     // Handle NFC events here
-    log(`Event received - Reader: ${event.reader}, ID: ${event.id} - State: ${JSON.stringify(event.readers)}`);
+    //log(`Event received - Reader: ${event.reader}, ID: ${event.id} - State: ${JSON.stringify(event.readers)} - ExclusiveState: ${JSON.stringify(event.exclusiveState)}`);
+
+    if (exclusives) {
+        log(`${event.notExclusive ? 'NON-EXCLUSIVE-' : ''}TAG: ${event.reader}, id=${event.id}`);
+        // Log exclusive state changes
+        for (const [exclusiveId, state] of Object.entries(event.exclusiveState)) {
+            if (state.changed === 'new') {
+                log(`CHANGE-NEW: ${exclusiveId} @${state.reader} =${state.id} #${state.index}`);
+            } else if (state.changed === 'removed') {
+                log(`CHANGE-REMOVED: ${exclusiveId}`);
+            }
+        }
+        // Show exclusive summary
+        const state = {}
+        for (const [exclusiveId, info] of Object.entries(event.exclusiveState)) {
+            state[exclusiveId] = info.id ? info.index : null;
+        }
+        log(`State: ${JSON.stringify(state)}`);
+    } else {
+        log(`TAG: ${event.reader}, id=${event.id}`);
+    }
+}
+
+// Mutually-exclusive tag groups
+let exclusives = null;
+if (true) {
+    // Mapping of group label to array of tag IDs -- matching events and current group index will be determined
+    exclusives ={
+        'a': ['397c8750', '397d7e40', '397c15a0', '397c8b50', '397d8240', '397ddae0', '397ecb70', '397f40e0', '397ddee0'],
+        'b': ['397ecf70', '397f44e0', '397de2d0', '397ed370', '397f48e0', '397de6c0', '397ed770', '397f4ce0', '397deac0', '397edb60'],
+        'c': ['3de47263', '3de39d10', '3de3e4fb', '3de45ad8', '3de62dd3'],
+    };
 }
 
 const connectionString = `ws://${location.hostname}:${location.port}/ws`;
-const nfc = new Nfc(connectionString, nfcEvent, log);
+const nfc = new Nfc(connectionString, nfcEvent, exclusives, null);
 nfc.connect();
 
 </script>
