@@ -13,16 +13,24 @@ class Nfc {
         this.reconnectTries = 0;
         this.readers = {};
         this.exclusiveMapping = {};
+        this.exclusiveValues = {};
         this.exclusiveReader = {};
 
         // Prepare mutually-exclusive group mapping
         if (this.exclusives) {
-            for (const [exclusiveId, ids] of Object.entries(this.exclusives)) {
-                for (const id of ids) {
+            for (let [exclusiveId, ids] of Object.entries(this.exclusives)) {
+                const idValues = Array.isArray(ids) ? ids : Object.keys(ids);
+                for (let index = 0; index < idValues.length; index++) {
+                    const id = idValues[index];
                     if (id in this.exclusiveMapping) {
                         throw new Error(`Duplicate exclusive ID mapping for ID ${id} -- already mapped to ${this.exclusiveMapping[id]} -- cannot also map to ${exclusiveId}.`);
                     }
                     this.exclusiveMapping[id] = exclusiveId;
+                    if (Array.isArray(ids)) {
+                        this.exclusiveValues[id] = index;
+                    } else {
+                        this.exclusiveValues[id] = ids[id];
+                    }
                 }
             }
         }
@@ -35,16 +43,17 @@ class Nfc {
     }
 
     connect() {
-        if (this.log) this.log('WS: Opening ' + this.connectionString);
+        if (this.log) this.log('NFC-WS: Opening ' + this.connectionString);
         this.ws = new WebSocket(this.connectionString);
 
         this.ws.addEventListener('open', () => {
-            if (this.log) this.log('WS: Opened');
+            if (this.log) this.log('NFC-WS: Opened');
             this.reconnectTries = 0;
         });
 
         this.ws.addEventListener('message', (wsEvent) => {
             const eventData = JSON.parse(wsEvent.data);
+            if (this.log) this.log('NFC-WS-EVENT: ' + wsEvent.data);
 
             const newReader = !(eventData.reader in this.readers);
             const previousId = newReader ? '' : this.readers[eventData.reader];
@@ -72,7 +81,8 @@ class Nfc {
                     reader: reader,
                     id: reader ? this.readers[reader] : null,
                     changed: (exclusiveId === newExclusiveId) ? 'new' : ((exclusiveId === previousExclusiveId) ? 'removed' : false),
-                    index: reader && this.readers[reader] ? Object.values(this.exclusives[exclusiveId]).indexOf(this.readers[reader]) : null,
+                    index: reader && this.readers[reader] ? (Array.isArray(this.exclusives[exclusiveId]) ? this.exclusives[exclusiveId] : Object.keys(this.exclusives[exclusiveId])).indexOf(this.readers[reader]) : null,
+                    value: reader && this.readers[reader] ? this.exclusiveValues[this.readers[reader]] : null,
                 };
             }
 
@@ -86,14 +96,11 @@ class Nfc {
                 exclusiveState: exclusiveState,
             };
 
-            const message = JSON.stringify(cardEvent);
-            if (this.log) this.log(message);
-
             if (this.eventCallback) this.eventCallback(cardEvent);
         });
 
         this.ws.addEventListener('close', () => {
-            if (this.log) this.log('WS: Closed');
+            if (this.log) this.log('NFC-WS: Closed');
 
             // Schedule reconnection with backoff
             this.reconnectTries++;
@@ -104,7 +111,7 @@ class Nfc {
         });
 
         this.ws.addEventListener('error', (error) => {
-            if (this.log) this.log(`WS: Error: ${error.message}`);
+            if (this.log) this.log(`NFC-WS: Error: ${error.message}`);
         });
     }
 }

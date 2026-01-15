@@ -29,6 +29,19 @@ pip install flask flask-sock
 ```
 
 
+## Run
+
+```bash
+# If required: Re-activate virtual environment
+source .venv/bin/activate
+
+# Run NFC server
+python nfc-server.py
+
+# Now visit the page at:  http://127.0.0.1:5001
+```
+
+
 ## Information
 
 AC122U:
