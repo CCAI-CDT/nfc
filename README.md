@@ -42,6 +42,11 @@ python nfc-server.py
 ```
 
 
+## Use in your own application
+
+See [test.html](test.html) for an example of how to connect to the NFC server from a web page using JavaScript.  To customize this, copy the `<script>`...`</script>` section into your own HTML page and modify the `nfcEvent()` handler as required.  If you are using "exclusively mutual IDs", modify the both `TODO:` markers: the `exclusives` object that describes the mutually exclusive IDs, and the part of the `nfcEvent()` handler that determines changes in the mutually-exclusive state.  
+
+
 ## Information
 
 AC122U:
