@@ -52,7 +52,13 @@ class Nfc {
         });
 
         this.ws.addEventListener('message', (wsEvent) => {
-            const eventData = JSON.parse(wsEvent.data);
+            let eventData;
+            try {
+                eventData = JSON.parse(wsEvent.data);
+            } catch (e) {
+                if (this.log) this.log('NFC-WS: Invalid JSON data received: ' + wsEvent.data);
+                return;
+            }
             if (this.log) this.log('NFC-WS-EVENT: ' + wsEvent.data);
 
             const newReader = !(eventData.reader in this.readers);
