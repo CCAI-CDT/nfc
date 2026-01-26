@@ -112,24 +112,30 @@ async function dynamicallyLoadScript(url) {
 
 // Load the NFC script and start the NFC connection
 async function runNfc() {
-    let protocolSecure = location.protocol === 'https:' ? 's' : '';
-    let hostname = location.hostname;
-    let port = location.port;
+    try {
+        let protocolSecure = location.protocol === 'https:' ? 's' : '';
+        let hostname = location.hostname;
+        let port = location.port;
 
-    // Override address of NFC server
-    //protocolSecure = '';
-    //hostname = '127.0.0.1';  // 'localhost'
-    port = 5001;
+        // Override the address of the NFC server
+        if (!hostname) {    // e.g. file: protocol
+            hostname = '127.0.0.1';  // 'localhost'
+        }
+        protocolSecure = '';    // force non-secure
+        port = 5001;
 
-    const scriptUrl = `http${protocolSecure}://${location.hostname}:${location.port}/nfc.js`;
-    const connectionString = `ws${protocolSecure}://${location.hostname}:${location.port}/ws`;
+        const scriptUrl = `http${protocolSecure}://${hostname}:${port}/nfc.js`;
+        const connectionString = `ws${protocolSecure}://${hostname}:${port}/ws`;
 
-    nfcLog(`NFC: Loading script from nfc-server.py at: ${scriptUrl}`);
-    await dynamicallyLoadScript(scriptUrl);
+        nfcLog(`NFC: Loading script from nfc-server.py at: ${scriptUrl}`);
+        await dynamicallyLoadScript(scriptUrl);
 
-    nfcLog(`NFC: Connecting to nfc-server.py at: ${scriptUrl}`);
-    const nfc = new Nfc(connectionString, nfcEvent, exclusives, nfcLog);
-    nfc.connect();
+        nfcLog(`NFC: Connecting to nfc-server.py at: ${scriptUrl}`);
+        const nfc = new Nfc(connectionString, nfcEvent, exclusives, nfcLog);
+        nfc.connect();
+    } catch (error) {
+        nfcLog(`NFC: Error - ${error.message}`);
+    }
 }
 
 // Start NFC now
